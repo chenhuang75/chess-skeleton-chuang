@@ -3,6 +3,7 @@ package chess;
 import chess.pieces.Piece;
 
 import java.io.*;
+import java.util.List;
 
 /**
  * This class provides the basic CLI interface to the Chess game.
@@ -48,7 +49,10 @@ public class CLI {
 
         while (true) {
             showBoard();
-            writeOutput(gameState.getCurrentPlayer() + "'s Move");
+            if(!gameState.isGameOver())
+            	writeOutput(gameState.getCurrentPlayer() + "'s Move");
+            else
+    			writeOutput(gameState.congrats());
 
             String input = getInput();
             if (input == null) {
@@ -64,9 +68,10 @@ public class CLI {
                 } else if (input.equals("board")) {
                     writeOutput("Current Game:");
                 } else if (input.equals("list")) {
-                    writeOutput("====> List Is Not Implemented (yet) <====");
+                	listAllMoves();
                 } else if (input.startsWith("move")) {
-                    writeOutput("====> Move Is Not Implemented (yet) <====");
+                	String move = input.substring(5);
+                    makeMove(move);                    
                 } else {
                     writeOutput("I didn't understand that.  Type 'help' for a list of commands.");
                 }
@@ -81,6 +86,28 @@ public class CLI {
 
     private void showBoard() {
         writeOutput(getBoardAsString());
+    }
+
+    /**
+     * list all the possible moves
+     */
+    private void listAllMoves() {
+    	List<String> moves = gameState.allPossibleMoves();
+        writeOutput(gameState.getCurrentPlayer() + "'s Possible Moves:");
+        for (String move : moves) {
+        	writeOutput(move);
+		}
+    }
+    
+    /**
+     * make a move
+     * @param move
+     */
+    private void makeMove(String move) {
+    	boolean flag = gameState.makeMove(move);
+    	if(!flag) {
+    		writeOutput("Illegal move");
+    	}
     }
 
     private void showCommands() {
