@@ -3,7 +3,9 @@ package chess;
 
 import chess.pieces.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,6 +23,14 @@ public class GameState {
      * A map of board positions to pieces at that position
      */
     private Map<Position, Piece> positionToPieceMap;
+    
+    private Position whiteKingPos;
+    
+    private Position blackKingPos;
+    
+    private boolean gameOver;
+    
+    private String congrats;
 
     /**
      * Create the game state.
@@ -72,6 +82,8 @@ public class GameState {
         placePiece(new Pawn(Player.Black), new Position("f7"));
         placePiece(new Pawn(Player.Black), new Position("g7"));
         placePiece(new Pawn(Player.Black), new Position("h7"));
+        
+        gameOver = false;
     }
 
     /**
@@ -100,5 +112,205 @@ public class GameState {
      */
     private void placePiece(Piece piece, Position position) {
         positionToPieceMap.put(position, piece);
+		if(Character.toLowerCase( piece.getIdentifier() ) == 'k') {
+			if(piece.getOwner() == Player.White)
+				whiteKingPos = position;
+			else
+				blackKingPos = position;
+		}
+
+    }
+    
+    /**
+     * We generate all the possible moves for the current player
+     * we also exclude the moves which will keep king under the check
+     * @return
+     */
+    public List<String> allPossibleMoves() {
+    	List<String> moves = new ArrayList<String>();
+    	
+    	// get all the pieces for the current player
+    	Map<Position, Piece> tmpMap = new HashMap<Position, Piece>();
+    	for (Position pos : positionToPieceMap.keySet()) {
+    		Piece piece = positionToPieceMap.get(pos);
+    		if(getCurrentPlayer() != piece.getOwner())
+    			continue;
+    		tmpMap.put(pos, piece);
+    	}
+    		
+    	for (Position pos : tmpMap.keySet()) {
+    		Piece piece = tmpMap.get(pos);
+    		List<Position> positions = piece.getNextPositions(pos, this);
+    		for(int i = 0; i < positions.size(); i ++) {
+    			String move = pos.toString() + " " + positions.get(i).toString();
+    			
+    			// check if the king move is valid
+    			if(!isMoveValidforKing(move))
+    				continue;
+    				
+    			moves.add(move);
+    		}
+    	}
+    	return moves;
+    }
+    
+    /**
+     * we generate all the possible moves for all the pieces other than the king.
+     * notice this function doesn't need to move pieces to backtrack test.
+     * @return
+     */
+    private List<String> allPossibleMovesWOKing() {
+    	List<String> moves = new ArrayList<String>();
+    	
+    	// get all the pieces for the current player
+    	Map<Position, Piece> tmpMap = new HashMap<Position, Piece>();
+    	for (Position pos : positionToPieceMap.keySet()) {
+    		Piece piece = positionToPieceMap.get(pos);
+    		if(getCurrentPlayer() != piece.getOwner())
+    			continue;
+    		tmpMap.put(pos, piece);
+    	}
+    		
+    	for (Position pos : tmpMap.keySet()) {
+    		Piece piece = tmpMap.get(pos);
+    		List<Position> positions = piece.getNextPositions(pos, this);
+    		for(int i = 0; i < positions.size(); i ++) {
+    			String move = pos.toString() + " " + positions.get(i).toString();
+    			
+    			// we ignore king moves in this function to avoid looping
+    			if(Character.toLowerCase( piece.getIdentifier() ) == 'k')
+    				continue;
+    				
+    			moves.add(move);
+    		}
+    	}
+    	return moves;
+    }
+    
+    /**
+     * Make a move
+     * Also check if the game is over
+     * @param move
+     * @return
+     */
+    public boolean makeMove(String move) {
+    	if(!allPossibleMoves().contains(move))
+    		return false;
+    	String[] positions = move.split(" ");
+    	Position oldPos = new Position(positions[0]);
+    	Position newPos = new Position(positions[1]);
+    	
+    	Piece piece = getPieceAt(oldPos);
+    	positionToPieceMap.remove(oldPos);
+    	placePiece(piece, newPos);
+    	nextTurn();
+
+    	// check if it's checkmate
+    	if(isCheckmate()) {
+    		nextTurn();
+    		gameOver = true;
+    		congrats = "The game is over.  Congrats to " + currentPlayer + ".";
+    	}
+    	    	
+    	return true;
+    }
+    
+    /**
+     * check if this move will make the king under check.
+     * we make the move to change the positions first,
+     * then we restore the old positions after the check
+     * @param move
+     * @return
+     */
+    private boolean isMoveValidforKing(String move) {
+    	String[] positions = move.split(" ");
+    	Position oldPos = new Position(positions[0]);
+    	Position newPos = new Position(positions[1]);
+    	
+    	// backtrack testing the move from old pos to new pos
+    	Piece piece = getPieceAt(oldPos);
+    	Piece replacedPiece = getPieceAt(newPos);
+    	positionToPieceMap.remove(oldPos);
+    	placePiece(piece, newPos);
+    	
+    	// check if this move is valid under conditions
+    	boolean flag = true;
+    	if( isKingUnderCheck() || areKingsAdjacent() )
+    		flag = false;
+    	
+    	// restore the move back to old pos
+    	placePiece(piece, oldPos);
+    	if(replacedPiece != null)
+    		placePiece(replacedPiece, newPos);
+    	else
+        	positionToPieceMap.remove(newPos);
+    	
+    	return flag;
+    }
+    
+    /**
+     * change turn
+     */
+    private void nextTurn() {
+    	if(currentPlayer == Player.White)
+    		currentPlayer = Player.Black;
+    	else
+    		currentPlayer = Player.White;
+    }
+    
+    /**
+     * check if this is checkmate
+     * somehow I think stalemate is also included here.
+     * I need to seperate them.
+     * @return
+     */
+    private boolean isCheckmate() {
+    	return allPossibleMoves().size() == 0;
+    }
+    
+    /**
+     * check if the king is under check
+     * @return
+     */
+    private boolean isKingUnderCheck() {
+    	String kingPos = whiteKingPos.toString();
+    	if(currentPlayer == Player.Black)
+    		kingPos = blackKingPos.toString();
+    	
+    	nextTurn();
+    	List<String> allMoves = allPossibleMovesWOKing();
+    	boolean flag = false;
+    	for (String move : allMoves) {
+			if(move.endsWith(kingPos))
+				flag = true;
+		}
+    	
+    	nextTurn();
+    	return flag;
+    }
+    
+    /**
+     * check if two kings are adjacent which is not allowed
+     * @return
+     */
+    public boolean areKingsAdjacent() {
+    	return ((whiteKingPos.getColumn() - blackKingPos.getColumn()) * (whiteKingPos.getColumn() - blackKingPos.getColumn()) + 
+    			(whiteKingPos.getRow() - blackKingPos.getRow()) * (whiteKingPos.getRow() - blackKingPos.getRow()) <= 2);
+    }
+    
+    /**
+     * check if the game is over
+     * @return
+     */
+    public boolean isGameOver() {
+    	return gameOver;
+    }
+    
+    /**
+     * return congratulations
+     * @return
+     */
+    public String congrats() {
+    	return congrats;
     }
 }
