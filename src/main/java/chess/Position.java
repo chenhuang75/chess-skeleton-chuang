@@ -65,4 +65,12 @@ public class Position {
         return "" + column + row;
     }
 
+    /**
+     * check if this position is out of board
+     * @return
+     */
+    public boolean isvalid() {
+    	return (column >= MIN_COLUMN && column <= MAX_COLUMN && 
+    			row >= MIN_ROW && row <= MAX_ROW);
+    }
 }
